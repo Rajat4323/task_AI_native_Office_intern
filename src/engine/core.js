@@ -903,6 +903,49 @@ export function createEngine(initialRows = 50, initialCols = 50) {
     // All cell operations go through the public methods which handle undo/redo,
     // dependency tracking, and cache invalidation automatically
 
+    function serialize() {
+        const serializedCells = []
+        for (const [key, value] of cells.entries()) {
+            serializedCells.push({ key, raw: value.raw || '' })
+        }
+        return {
+            rows,
+            cols,
+            cells: serializedCells,
+        }
+    }
+
+    function deserialize(snapshot) {
+        if (!snapshot || typeof snapshot !== 'object') return false
+        const { rows: snapRows, cols: snapCols, cells: snapCells } = snapshot
+        if (typeof snapRows !== 'number' || typeof snapCols !== 'number' || !Array.isArray(snapCells)) {
+            return false
+        }
+
+        rows = snapRows
+        cols = snapCols
+        cells.clear()
+        graph.clear()
+        computedCache.clear()
+        dirtyCells.clear()
+        _generation++
+
+        for (const item of snapCells) {
+            if (!item || typeof item.key !== 'string') continue
+            const raw = typeof item.raw === 'string' ? item.raw : ''
+            if (!raw || raw.trim() === '') continue
+            cells.set(item.key, { raw, computed: null, error: null })
+        }
+
+        // Rebuild dependency graph from restored cells
+        for (const [key, value] of cells.entries()) {
+            if (value.raw && value.raw.startsWith('=')) updateDependencies(key, value.raw)
+        }
+        markAllCellsDirty()
+        recalculate()
+        return true
+    }
+
     return {
         get rows() { return rows },
         get cols() { return cols },
@@ -916,7 +959,7 @@ export function createEngine(initialRows = 50, initialCols = 50) {
         redo,
         canUndo: () => undoStack.length > 0,
         canRedo: () => redoStack.length > 0,
-        // Internal state is not exposed - if you need to serialize/deserialize,
-        // you'll need to work with the public API or add new methods
+        serialize,
+        deserialize,
     }
 }

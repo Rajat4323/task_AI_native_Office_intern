@@ -151,3 +151,63 @@ This application works on all modern browsers that support ES2020+ JavaScript:
 
 
 # task_AI_native_Office_intern
+
+## My Implementation
+
+### 1. Project Overview
+
+Spreadsheet-like web app built with **React + Vite** and a custom **spreadsheet engine** that manages cell data, parses formulas, tracks dependencies, and recalculates computed values.
+
+### 2. Implemented Features
+
+#### Task 1 – Column Sort & Filter
+
+- **Sorting**: Three states per column—ascending, descending, none. Uses `engine.getCell(row, col).computed` so formula results sort with numbers/strings.
+- **View-layer only**: `rowOrder` state controls row display; engine data and formulas stay unchanged.
+- **Filtering**: Excel-style dropdown per column with checkboxes of unique computed values. Hides rows in UI; engine data untouched.
+- **Combined**: Sort via `rowOrder`, then filter via `passesFilters(rowIndex)`.
+
+#### Task 2 – Multi-Cell Copy & Paste
+
+- **Ctrl+C**: Copies computed value of selected cell (not formula text).
+- **Ctrl+V**: Parses tab/newline clipboard; compatible with Excel/Sheets. Multi-row/column paste from selected cell.
+- **Internal + external**: Paste preserves formulas when pasted as raw text; `engine.setCell` used per cell.
+- **Undo**: Pastes are undoable with Ctrl+Z (each cell goes through engine undo).
+
+#### Task 3 – Local Storage Persistence
+
+- **Auto-save**: State written to `localStorage` when data or styles change; **debounced ~500 ms** (setTimeout) to avoid writes on every keystroke.
+- **Auto-restore**: On load, snapshot read and applied (engine + styles); same spreadsheet after refresh.
+- **Persisted**: Cell raw values/formulas, cell styles, grid dimensions.
+- **Not persisted**: Undo/redo history, selection, editing, filter/sort state.
+- **Safety**: try/catch on read/parse; corrupted data ignored, app starts fresh.
+
+### 3. Architecture Overview
+
+- **`App.jsx`**: Toolbar, formula bar, grid; state for selection, editing, `rowOrder`, `filters`, `cellStyles`; handles edit, sort, filter, clipboard, undo/redo, row/column ops.
+- **`engine/core.js`**: Sparse `Map` of cells (key = `"A1"` etc.); tokenize → parse (shunting-yard) → evaluate (incl. SUM/AVG/MIN/MAX); dependency graph + topological recalc; public API: `getCell`, `setCell`, insert/delete row/col, undo/redo, `serialize`/`deserialize`.
+
+### 4. Key Design Decisions
+
+- **Sort/filter in view layer**: Row order and visibility only; engine addresses unchanged so formulas stay correct.
+- **Formulas in engine**: UI only requests computed values.
+- **Debounced persist**: Fewer localStorage writes; data still saved promptly.
+- **Styles separate**: In React state + persisted with engine snapshot; engine stays data/formula-only.
+
+### 5. Edge Cases Handled
+
+- Empty cells: Treated as distinct in sort/filter; persistence skips empty cells.
+- Mixed number/string: Sort orders by type (number → string → empty → error).
+- Formula results: Sort/filter use `.computed` so formulas participate correctly.
+- Corrupted localStorage: Caught and ignored; fresh sheet on load.
+- Large paste: Rows/cols parsed; cells outside grid bounds skipped.
+
+### 6. Running the Project
+
+```bash
+npm install    # or yarn install
+npm run dev    # or yarn dev
+```
+
+Open `http://localhost:5173` and test sort, filter, clipboard, and reload persistence.
+
